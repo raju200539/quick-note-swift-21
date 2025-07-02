@@ -28,7 +28,7 @@ jobs:
         script: |
           # Clone or update repo
           if [ ! -d my-app ]; then
-            git clone https://github.com/raju200539/quick-note-swift-21.git quick-note-swift-21
+            git clone https://github.com/raju200539/quick-note-swift-21.git
           else
             cd quick-note-swift-21 && git pull origin main && cd ..
           fi
