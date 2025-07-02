@@ -18,7 +18,7 @@ jobs:
         echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > private_key.pem
         chmod 600 private_key.pem
 
-    - name: Deploy to EC2
+    - name: SSH & Deploy to EC2
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.EC2_HOST }}
@@ -26,21 +26,33 @@ jobs:
         port: ${{ secrets.EC2_PORT }}
         key_path: private_key.pem
         script: |
+          set -e
+          echo "✅ Connected to EC2"
+
+          # Free up disk space (optional)
+          sudo docker system prune -af || true
+
           # Clone or update repo
-          if [ ! -d my-app ]; then
-            git clone https://github.com/raju200539/quick-note-swift-21.git
+          if [ -d quick-note-swift-21 ]; then
+            echo "✅ Repo exists. Pulling latest..."
+            cd quick-note-swift-21
+            git pull origin main
+            cd ..
           else
-            cd quick-note-swift-21 && git pull origin main && cd ..
+            echo "✅ Cloning repo..."
+            git clone https://github.com/raju200539/quick-note-swift-21.git
           fi
 
           cd quick-note-swift-21
 
-          # Stop and remove existing container
+          echo "✅ Stopping old container if exists..."
           sudo docker stop my-app || true
           sudo docker rm my-app || true
 
-          # Build new Docker image
-          sudo docker build -t my-app .
+          echo "✅ Building new Docker image..."
+          sudo docker build --no-cache -t my-app .
 
-          # Run new container on port 8080
-          sudo docker run -d -p 8080:80 --name my-app my-app
+          echo "✅ Running container on port 80..."
+          sudo docker run -d --name my-app -p 80:80 my-app
+
+          echo "✅ Deployment completed successfully!"
