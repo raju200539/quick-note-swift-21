@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import NoteCard from '../components/NoteCard';
-import AddNoteModal from '../components/AddNoteModal';
+import NoteModal from '../components/NoteModal';
 import ThemeToggle from '../components/ThemeToggle';
 
 interface Note {
@@ -15,6 +15,7 @@ interface Note {
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
 
   // Load notes from localStorage on component mount
   useEffect(() => {
@@ -62,15 +63,41 @@ const Index = () => {
     setNotes(welcomeNotes);
   };
 
-  const addNote = (title: string, content: string) => {
-    const newNote: Note = {
-      id: Date.now().toString(),
-      title: title.trim() || 'Untitled Note',
-      content,
-      createdAt: new Date()
-    };
-    setNotes(prev => [newNote, ...prev]);
+  const handleSaveNote = (title: string, content: string) => {
+    if (editingNote) {
+      // Editing existing note
+      setNotes(prev => prev.map(note => 
+        note.id === editingNote.id 
+          ? { ...note, title: title.trim() || 'Untitled Note', content }
+          : note
+      ));
+    } else {
+      // Adding new note
+      const newNote: Note = {
+        id: Date.now().toString(),
+        title: title.trim() || 'Untitled Note',
+        content,
+        createdAt: new Date()
+      };
+      setNotes(prev => [newNote, ...prev]);
+    }
     setIsModalOpen(false);
+    setEditingNote(null);
+  };
+
+  const handleEditNote = (note: Note) => {
+    setEditingNote(note);
+    setIsModalOpen(true);
+  };
+
+  const handleAddNote = () => {
+    setEditingNote(null);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingNote(null);
   };
 
   const deleteNote = (id: string) => {
@@ -114,8 +141,8 @@ const Index = () => {
               </div>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-indigo-700 hover:to-blue-700 dark:hover:from-indigo-600 dark:hover:to-blue-600 transition-all duration-150 transform hover:scale-105 shadow-lg text-sm sm:text-base active:scale-95"
+              onClick={handleAddNote}
+              className="flex items-center space-x-2 bg-primary text-primary-foreground px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:bg-primary/90 transition-all duration-150 transform hover:scale-105 shadow-lg text-sm sm:text-base active:scale-95"
             >
               <Plus size={18} />
               <span className="hidden sm:inline">Add Note</span>
@@ -131,8 +158,8 @@ const Index = () => {
             <h3 className="text-xl sm:text-2xl font-semibold text-slate-800 dark:text-slate-200 mb-2">No notes yet</h3>
             <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm sm:text-base">Click the + button to create your first note!</p>
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:from-indigo-700 hover:to-blue-700 dark:hover:from-indigo-600 dark:hover:to-blue-600 transition-all duration-150 transform hover:scale-105 shadow-lg text-sm sm:text-base active:scale-95"
+              onClick={handleAddNote}
+              className="bg-primary text-primary-foreground px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:bg-primary/90 transition-all duration-150 transform hover:scale-105 shadow-lg text-sm sm:text-base active:scale-95"
             >
               Create First Note
             </button>
@@ -144,6 +171,7 @@ const Index = () => {
                 key={note.id}
                 note={note}
                 onDelete={deleteNote}
+                onEdit={handleEditNote}
               />
             ))}
           </div>
@@ -152,17 +180,18 @@ const Index = () => {
 
       {/* Floating Action Button - Mobile */}
       <button
-        onClick={() => setIsModalOpen(true)}
-        className="sm:hidden fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white p-4 rounded-full shadow-2xl hover:from-indigo-700 hover:to-blue-700 dark:hover:from-indigo-600 dark:hover:to-blue-600 transition-all duration-150 transform hover:scale-110 z-50 active:scale-95"
+        onClick={handleAddNote}
+        className="sm:hidden fixed bottom-6 right-6 bg-primary text-primary-foreground p-4 rounded-full shadow-2xl hover:bg-primary/90 transition-all duration-150 transform hover:scale-110 z-50 active:scale-95"
       >
         <Plus size={24} />
       </button>
 
-      {/* Add Note Modal */}
-      <AddNoteModal
+      {/* Note Modal */}
+      <NoteModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAdd={addNote}
+        onClose={handleCloseModal}
+        onSave={handleSaveNote}
+        editingNote={editingNote}
       />
 
       {/* Footer */}
