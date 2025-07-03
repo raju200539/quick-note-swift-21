@@ -1,6 +1,9 @@
 
 import React, { useState } from 'react';
 import { Trash2, Edit } from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface Note {
   id: string;
@@ -11,11 +14,12 @@ interface Note {
 
 interface NoteCardProps {
   note: Note;
+  noteNumber: number;
   onDelete: (id: string) => void;
   onEdit: (note: Note) => void;
 }
 
-const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete, onEdit }) => {
+const NoteCard: React.FC<NoteCardProps> = ({ note, noteNumber, onDelete, onEdit }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = () => {
@@ -35,50 +39,55 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete, onEdit }) => {
   };
 
   return (
-    <div 
-      className={`bg-card/90 backdrop-blur-sm rounded-xl p-6 border border-border shadow-sm hover:shadow-lg transition-all duration-150 transform hover:-translate-y-1 group active:scale-95 ${
+    <Card 
+      className={`transition-all duration-150 transform hover:-translate-y-1 group active:scale-95 ${
         isDeleting ? 'scale-95 opacity-0 transition-all duration-150' : ''
       }`}
     >
-      <div className="flex justify-between items-start mb-4">
-        <div className="text-xs text-muted-foreground font-medium">
-          {formatDate(note.createdAt)}
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start">
+          <Badge variant="secondary" className="text-xs">
+            {formatDate(note.createdAt)}
+          </Badge>
+          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onEdit(note)}
+              className="h-8 w-8 p-0 hover:bg-accent"
+            >
+              <Edit size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <button
-            onClick={() => onEdit(note)}
-            className="text-muted-foreground hover:text-primary p-1 rounded-lg hover:bg-accent transition-all duration-150 active:scale-90"
-          >
-            <Edit size={16} />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-destructive/10 transition-all duration-150 active:scale-90"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
+      </CardHeader>
       
-      {/* Note Title */}
-      <div className="mb-3">
-        <h3 className="font-semibold text-card-foreground text-lg leading-tight break-words">
+      <CardContent className="pb-3">
+        <h3 className="font-semibold text-lg leading-tight break-words mb-3">
           {note.title}
         </h3>
-      </div>
+        <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap break-words text-sm">
+          {note.content}
+        </p>
+      </CardContent>
       
-      {/* Note Content */}
-      <div className="text-muted-foreground leading-relaxed whitespace-pre-wrap break-words text-sm">
-        {note.content}
-      </div>
-      
-      <div className="mt-4 pt-4 border-t border-border">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Note #{note.id.slice(-4)}</span>
+      <CardFooter className="pt-3">
+        <div className="flex items-center justify-between w-full text-xs text-muted-foreground">
+          <Badge variant="outline" className="text-xs">
+            Note #{noteNumber}
+          </Badge>
           <span>{note.content.length} chars</span>
         </div>
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 };
 

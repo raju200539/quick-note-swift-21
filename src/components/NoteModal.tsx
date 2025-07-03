@@ -1,6 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Note {
   id: string;
@@ -49,59 +54,43 @@ const NoteModal: React.FC<NoteModalProps> = ({ isOpen, onClose, onSave, editingN
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-150 scale-100 animate-in slide-in-from-bottom-4">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[525px]">
+        <DialogHeader>
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-primary rounded-lg">
               <Plus size={20} className="text-primary-foreground" />
             </div>
-            <h2 className="text-xl font-semibold text-foreground">{isEditing ? 'Edit Note' : 'Add New Note'}</h2>
+            <DialogTitle className="text-xl font-semibold">
+              {isEditing ? 'Edit Note' : 'Add New Note'}
+            </DialogTitle>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-accent rounded-lg transition-colors duration-150 active:scale-90"
-          >
-            <X size={20} className="text-muted-foreground" />
-          </button>
-        </div>
+        </DialogHeader>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
-          {/* Title Field */}
-          <div className="mb-4">
-            <label htmlFor="note-title" className="block text-sm font-medium text-foreground mb-2">
-              Title
-            </label>
-            <input
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="note-title">Title</Label>
+            <Input
               id="note-title"
-              type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter note title..."
-              className="w-full p-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent text-foreground placeholder-muted-foreground bg-background transition-all duration-150"
               autoFocus
             />
           </div>
 
-          {/* Content Field */}
-          <div className="mb-6">
-            <label htmlFor="note-content" className="block text-sm font-medium text-foreground mb-2">
-              Content
-            </label>
-            <textarea
+          <div className="space-y-2">
+            <Label htmlFor="note-content">Content</Label>
+            <Textarea
               id="note-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="What's on your mind?"
-              className="w-full h-32 p-4 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent resize-none text-foreground placeholder-muted-foreground bg-background transition-all duration-150"
+              className="min-h-[120px] resize-none"
             />
-            <div className="flex justify-between items-center mt-2">
+            <div className="flex justify-between items-center">
               <p className="text-xs text-muted-foreground">
                 Press Cmd/Ctrl + Enter to save quickly
               </p>
@@ -111,26 +100,26 @@ const NoteModal: React.FC<NoteModalProps> = ({ isOpen, onClose, onSave, editingN
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex space-x-3">
-            <button
+          <div className="flex space-x-3 pt-4">
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="flex-1 px-6 py-3 border border-input text-foreground rounded-xl hover:bg-accent transition-colors duration-150 active:scale-95"
+              className="flex-1"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={!title.trim() && !content.trim()}
-              className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 transform hover:scale-105 active:scale-95"
+              className="flex-1"
             >
               {isEditing ? 'Save Changes' : 'Add Note'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
