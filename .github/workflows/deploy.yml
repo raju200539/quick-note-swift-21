@@ -53,6 +53,6 @@ jobs:
           sudo docker build --no-cache -t my-app .
 
           echo "✅ Running container on port 80..."
-          sudo docker run -d --name my-app -p 80:80 my-app
+          sudo docker run -d -p --name my-app 80:80 my-app
 
           echo "✅ Deployment completed successfully!"
