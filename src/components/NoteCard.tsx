@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Trash2, Edit } from 'lucide-react';
+import { Trash2, Edit, Mail } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,13 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, noteNumber, onDelete, onEdit 
     }, 100);
   };
 
+  const handleShare = () => {
+    const subject = encodeURIComponent(`Shared Note: ${note.title}`);
+    const body = encodeURIComponent(`Hi!\n\nI wanted to share this note with you:\n\n${note.title}\n\n${note.content}\n\nShared from QuickNotes`);
+    const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
+    window.open(mailtoUrl);
+  };
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -50,6 +57,14 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, noteNumber, onDelete, onEdit 
             {formatDate(note.createdAt)}
           </Badge>
           <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
+              className="h-8 w-8 p-0 hover:bg-accent"
+            >
+              <Mail size={14} />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
