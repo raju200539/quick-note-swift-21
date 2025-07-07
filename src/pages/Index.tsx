@@ -1,88 +1,157 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, LogOut } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 import NoteCard from '../components/NoteCard';
 import NoteModal from '../components/NoteModal';
 import ThemeToggle from '../components/ThemeToggle';
+import AuthPage from '../components/AuthPage';
+import FileUpload from '../components/FileUpload';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 interface Note {
   id: string;
   title: string;
   content: string;
-  createdAt: Date;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FileRecord {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number;
+  mime_type: string;
+  created_at: string;
 }
 
 const Index = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [files, setFiles] = useState<FileRecord[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Load notes from localStorage on component mount
+  // Authentication effect
   useEffect(() => {
-    const savedNotes = localStorage.getItem('quicknotes-data');
-    if (savedNotes) {
-      try {
-        const parsedNotes = JSON.parse(savedNotes).map((note: any) => ({
-          ...note,
-          createdAt: new Date(note.createdAt)
-        }));
-        setNotes(parsedNotes);
-      } catch (error) {
-        console.error('Error loading notes from localStorage:', error);
-        // If there's an error, initialize with welcome notes
-        initializeWelcomeNotes();
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
-    } else {
-      // First time user - show welcome notes
-      initializeWelcomeNotes();
-    }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Save notes to localStorage whenever notes change
+  // Load notes and files when user is authenticated
   useEffect(() => {
-    if (notes.length > 0 || localStorage.getItem('quicknotes-data')) {
-      localStorage.setItem('quicknotes-data', JSON.stringify(notes));
+    if (user) {
+      loadNotes();
+      loadFiles();
     }
-  }, [notes]);
+  }, [user]);
 
-  const initializeWelcomeNotes = () => {
-    const welcomeNotes: Note[] = [
-      {
-        id: '1',
-        title: 'Welcome to QuickNotes! 📝',
-        content: 'Start capturing your ideas instantly. Your notes will be saved automatically in this browser.',
-        createdAt: new Date()
-      },
-      {
-        id: '2', 
-        title: 'Getting Started',
-        content: 'Click the + button to add more notes! Each note can have a title and content.',
-        createdAt: new Date()
-      }
-    ];
-    setNotes(welcomeNotes);
+  const loadNotes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setNotes(data || []);
+    } catch (error) {
+      console.error('Error loading notes:', error);
+      toast({
+        title: 'Error loading notes',
+        description: 'Failed to load your notes. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleSaveNote = (title: string, content: string) => {
-    if (editingNote) {
-      // Editing existing note
-      setNotes(prev => prev.map(note => 
-        note.id === editingNote.id 
-          ? { ...note, title: title.trim() || 'Untitled Note', content }
-          : note
-      ));
-    } else {
-      // Adding new note
-      const newNote: Note = {
-        id: Date.now().toString(),
-        title: title.trim() || 'Untitled Note',
-        content,
-        createdAt: new Date()
-      };
-      setNotes(prev => [newNote, ...prev]);
+  const loadFiles = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await supabase.functions.invoke('s3-upload', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+      setFiles(response.data?.files || []);
+    } catch (error) {
+      console.error('Error loading files:', error);
     }
-    setIsModalOpen(false);
-    setEditingNote(null);
+  };
+
+  const handleSaveNote = async (title: string, content: string) => {
+    try {
+      if (editingNote) {
+        // Editing existing note
+        const { error } = await supabase
+          .from('notes')
+          .update({ 
+            title: title.trim() || 'Untitled Note', 
+            content 
+          })
+          .eq('id', editingNote.id);
+
+        if (error) throw error;
+        
+        toast({
+          title: 'Note updated',
+          description: 'Your note has been successfully updated.',
+        });
+      } else {
+        // Adding new note
+        const { error } = await supabase
+          .from('notes')
+          .insert({
+            user_id: user?.id,
+            title: title.trim() || 'Untitled Note',
+            content,
+          });
+
+        if (error) throw error;
+        
+        toast({
+          title: 'Note created',
+          description: 'Your note has been successfully created.',
+        });
+      }
+      
+      setIsModalOpen(false);
+      setEditingNote(null);
+      loadNotes(); // Reload notes after save
+    } catch (error) {
+      console.error('Error saving note:', error);
+      toast({
+        title: 'Error saving note',
+        description: 'Failed to save your note. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleEditNote = (note: Note) => {
@@ -100,9 +169,57 @@ const Index = () => {
     setEditingNote(null);
   };
 
-  const deleteNote = (id: string) => {
-    setNotes(prev => prev.filter(note => note.id !== id));
+  const deleteNote = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast({
+        title: 'Note deleted',
+        description: 'Your note has been successfully deleted.',
+      });
+      
+      loadNotes(); // Reload notes after delete
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast({
+        title: 'Error deleting note',
+        description: 'Failed to delete your note. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+    } else {
+      toast({
+        title: 'Signed out',
+        description: 'You have been successfully signed out.',
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">📝</div>
+          <p className="text-slate-600 dark:text-slate-400">Loading QuickNotes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage onAuthSuccess={() => setUser(user)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors duration-150">
@@ -118,7 +235,16 @@ const Index = () => {
                 Fast and simple note-taking
               </p>
             </div>
-            <div className="absolute right-4 sm:right-6 lg:right-8">
+            <div className="absolute right-4 sm:right-6 lg:right-8 flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="flex items-center gap-1"
+              >
+                <LogOut size={16} />
+                Sign Out
+              </Button>
               <ThemeToggle />
             </div>
           </div>
@@ -151,6 +277,9 @@ const Index = () => {
           </div>
         </div>
 
+        {/* File Upload Section */}
+        <FileUpload files={files} onFilesUpdate={loadFiles} />
+
         {/* Notes Grid */}
         {notes.length === 0 ? (
           <div className="text-center py-12 sm:py-16">
@@ -169,10 +298,17 @@ const Index = () => {
             {notes.map((note, index) => (
               <NoteCard
                 key={note.id}
-                note={note}
+                note={{
+                  ...note,
+                  createdAt: new Date(note.created_at)
+                }}
                 noteNumber={notes.length - index}
                 onDelete={deleteNote}
-                onEdit={handleEditNote}
+                onEdit={(noteToEdit) => handleEditNote({
+                  ...noteToEdit,
+                  created_at: note.created_at,
+                  updated_at: note.updated_at
+                })}
               />
             ))}
           </div>

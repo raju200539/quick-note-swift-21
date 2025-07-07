@@ -11,7 +11,8 @@ interface Note {
   id: string;
   title: string;
   content: string;
-  createdAt: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 interface NoteModalProps {
