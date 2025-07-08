@@ -64,18 +64,36 @@ serve(async (req) => {
         });
       }
 
-      // Create AWS signature
-      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const timeStr = new Date().toISOString().replace(/[:\-]|\.\d{3}/g, '');
+      // Create AWS Signature Version 4
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+      const timeStr = now.toISOString().replace(/[:\-]|\.\d{3}/g, '');
       
       const fileBuffer = await file.arrayBuffer();
       const fileUrl = `https://${awsBucket}.s3.${awsRegion}.amazonaws.com/${fileName}`;
 
-      // Simple S3 PUT request with session token support
+      // Generate AWS4 signature
+      const signature = await generateAWS4Signature({
+        method: 'PUT',
+        url: fileUrl,
+        region: awsRegion,
+        service: 's3',
+        accessKeyId: awsAccessKeyId,
+        secretAccessKey: awsSecretAccessKey,
+        sessionToken: awsSessionToken,
+        headers: {
+          'Content-Type': file.type,
+          'x-amz-date': timeStr,
+        },
+        body: fileBuffer,
+        dateStr,
+        timeStr
+      });
+
       const headers: Record<string, string> = {
         'Content-Type': file.type,
-        'Authorization': `AWS ${awsAccessKeyId}:${await generateS3Signature(awsSecretAccessKey, 'PUT', fileName, file.type, awsBucket, awsSessionToken)}`,
         'x-amz-date': timeStr,
+        'Authorization': signature,
       };
 
       // Add session token if available (for AWS Academy)
@@ -161,18 +179,110 @@ serve(async (req) => {
   }
 });
 
-async function generateS3Signature(secretKey: string, method: string, resource: string, contentType: string, bucket: string, sessionToken?: string): Promise<string> {
-  // Include session token in signature if provided
-  const canonicalHeaders = sessionToken ? `x-amz-security-token:${sessionToken}\n` : '';
-  const stringToSign = `${method}\n\n${contentType}\n\n${canonicalHeaders}/${bucket}/${resource}`;
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
+interface AWS4SignatureParams {
+  method: string;
+  url: string;
+  region: string;
+  service: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  headers: Record<string, string>;
+  body: ArrayBuffer;
+  dateStr: string;
+  timeStr: string;
+}
+
+async function generateAWS4Signature(params: AWS4SignatureParams): Promise<string> {
+  const { method, url, region, service, accessKeyId, secretAccessKey, sessionToken, headers, body, dateStr, timeStr } = params;
+  
+  // Parse URL to get host and path
+  const urlObj = new URL(url);
+  const host = urlObj.hostname;
+  const path = urlObj.pathname;
+  
+  // Create canonical headers
+  const canonicalHeaders: Record<string, string> = {
+    'host': host,
+    'x-amz-date': timeStr,
+    'content-type': headers['Content-Type'],
+  };
+  
+  if (sessionToken) {
+    canonicalHeaders['x-amz-security-token'] = sessionToken;
+  }
+  
+  // Sort headers by name
+  const sortedHeaderNames = Object.keys(canonicalHeaders).sort();
+  const canonicalHeadersStr = sortedHeaderNames
+    .map(name => `${name}:${canonicalHeaders[name]}\n`)
+    .join('');
+  
+  const signedHeaders = sortedHeaderNames.join(';');
+  
+  // Create payload hash
+  const payloadHash = await sha256Hex(new Uint8Array(body));
+  
+  // Create canonical request
+  const canonicalRequest = [
+    method,
+    path,
+    '', // query string (empty for S3 PUT)
+    canonicalHeadersStr,
+    signedHeaders,
+    payloadHash
+  ].join('\n');
+  
+  console.log('Canonical Request:', canonicalRequest);
+  
+  // Create string to sign
+  const algorithm = 'AWS4-HMAC-SHA256';
+  const credentialScope = `${dateStr}/${region}/${service}/aws4_request`;
+  const canonicalRequestHash = await sha256Hex(new TextEncoder().encode(canonicalRequest));
+  
+  const stringToSign = [
+    algorithm,
+    timeStr,
+    credentialScope,
+    canonicalRequestHash
+  ].join('\n');
+  
+  console.log('String to Sign:', stringToSign);
+  
+  // Calculate signature
+  const dateKey = await hmacSha256(new TextEncoder().encode(`AWS4${secretAccessKey}`), dateStr);
+  const dateRegionKey = await hmacSha256(dateKey, region);
+  const dateRegionServiceKey = await hmacSha256(dateRegionKey, service);
+  const signingKey = await hmacSha256(dateRegionServiceKey, 'aws4_request');
+  const signature = await hmacSha256(signingKey, stringToSign);
+  const signatureHex = Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Create authorization header
+  const credential = `${accessKeyId}/${credentialScope}`;
+  const authorizationHeader = `${algorithm} Credential=${credential}, SignedHeaders=${signedHeaders}, Signature=${signatureHex}`;
+  
+  console.log('Authorization Header:', authorizationHeader);
+  
+  return authorizationHeader;
+}
+
+async function sha256Hex(data: Uint8Array): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = new Uint8Array(hashBuffer);
+  return Array.from(hashArray)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function hmacSha256(key: Uint8Array | ArrayBuffer, data: string): Promise<ArrayBuffer> {
+  const cryptoKey = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(secretKey),
-    { name: 'HMAC', hash: 'SHA-1' },
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
   );
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(stringToSign));
-  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(data));
 }
