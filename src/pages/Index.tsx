@@ -105,16 +105,21 @@ const Index = () => {
     }
   };
 
-  const handleSaveNote = async (title: string, content: string) => {
+  const handleSaveNote = async (title: string, content: string, fileId?: string, reminderEmail?: string) => {
     try {
       if (editingNote) {
         // Editing existing note
+        const updateData: any = { 
+          title: title.trim() || 'Untitled Note', 
+          content 
+        };
+        
+        if (fileId) updateData.file_id = fileId;
+        if (reminderEmail) updateData.reminder_email = reminderEmail;
+
         const { error } = await supabase
           .from('notes')
-          .update({ 
-            title: title.trim() || 'Untitled Note', 
-            content 
-          })
+          .update(updateData)
           .eq('id', editingNote.id);
 
         if (error) throw error;
@@ -125,13 +130,18 @@ const Index = () => {
         });
       } else {
         // Adding new note
+        const insertData: any = {
+          user_id: user?.id,
+          title: title.trim() || 'Untitled Note',
+          content,
+        };
+        
+        if (fileId) insertData.file_id = fileId;
+        if (reminderEmail) insertData.reminder_email = reminderEmail;
+
         const { error } = await supabase
           .from('notes')
-          .insert({
-            user_id: user?.id,
-            title: title.trim() || 'Untitled Note',
-            content,
-          });
+          .insert(insertData);
 
         if (error) throw error;
         

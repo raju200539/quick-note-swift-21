@@ -48,7 +48,9 @@ export type Database = {
         Row: {
           content: string | null
           created_at: string
+          file_id: string | null
           id: string
+          reminder_email: string | null
           title: string
           updated_at: string
           user_id: string
@@ -56,7 +58,9 @@ export type Database = {
         Insert: {
           content?: string | null
           created_at?: string
+          file_id?: string | null
           id?: string
+          reminder_email?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -64,12 +68,22 @@ export type Database = {
         Update: {
           content?: string | null
           created_at?: string
+          file_id?: string | null
           id?: string
+          reminder_email?: string | null
           title?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notes_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

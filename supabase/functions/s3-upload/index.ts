@@ -53,6 +53,7 @@ serve(async (req) => {
       // AWS S3 upload
       const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
       const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
+      const awsSessionToken = Deno.env.get('AWS_SESSION_TOKEN');
       const awsRegion = Deno.env.get('AWS_REGION');
       const awsBucket = Deno.env.get('AWS_S3_BUCKET');
 
@@ -70,14 +71,21 @@ serve(async (req) => {
       const fileBuffer = await file.arrayBuffer();
       const fileUrl = `https://${awsBucket}.s3.${awsRegion}.amazonaws.com/${fileName}`;
 
-      // Simple S3 PUT request
+      // Simple S3 PUT request with session token support
+      const headers: Record<string, string> = {
+        'Content-Type': file.type,
+        'Authorization': `AWS ${awsAccessKeyId}:${await generateS3Signature(awsSecretAccessKey, 'PUT', fileName, file.type, awsBucket, awsSessionToken)}`,
+        'x-amz-date': timeStr,
+      };
+
+      // Add session token if available (for AWS Academy)
+      if (awsSessionToken) {
+        headers['x-amz-security-token'] = awsSessionToken;
+      }
+
       const s3Response = await fetch(fileUrl, {
         method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-          'Authorization': `AWS ${awsAccessKeyId}:${await generateS3Signature(awsSecretAccessKey, 'PUT', fileName, file.type, awsBucket)}`,
-          'x-amz-date': timeStr,
-        },
+        headers,
         body: fileBuffer,
       });
 
@@ -153,8 +161,10 @@ serve(async (req) => {
   }
 });
 
-async function generateS3Signature(secretKey: string, method: string, resource: string, contentType: string, bucket: string): Promise<string> {
-  const stringToSign = `${method}\n\n${contentType}\n\n/${bucket}/${resource}`;
+async function generateS3Signature(secretKey: string, method: string, resource: string, contentType: string, bucket: string, sessionToken?: string): Promise<string> {
+  // Include session token in signature if provided
+  const canonicalHeaders = sessionToken ? `x-amz-security-token:${sessionToken}\n` : '';
+  const stringToSign = `${method}\n\n${contentType}\n\n${canonicalHeaders}/${bucket}/${resource}`;
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
