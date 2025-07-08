@@ -1,23 +1,50 @@
-- uses: appleboy/ssh-action@v1.0.0
-  with:
-    host: ${{ secrets.EC2_HOST }}
-    username: ${{ secrets.EC2_USER }}
-    port: ${{ secrets.EC2_PORT }}
-    key_path: private_key.pem
-    script: |
-      if [ ! -d quick-note-swift-21 ]; then
-        git clone https://github.com/raju200539/quick-note-swift-21.git
-      else
-        cd quick-note-swift-21
-        git checkout main
-        git pull origin main
-        cd ..
-      fi
+name: Deploy to EC2 with Docker
 
-      cd quick-note-swift-21
-      git log -n 2
+on:
+  push:
+    branches: [main]
 
-      sudo docker stop my-app || true
-      sudo docker rm my-app || true
-      sudo docker build --no-cache -t my-app .
-      sudo docker run -d -p 80:80 --name my-app my-app
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Decode EC2 Private Key
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > private_key.pem
+          chmod 600 private_key.pem
+
+      - name: Deploy to EC2 and Restart App
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          port: ${{ secrets.EC2_PORT }}
+          key_path: private_key.pem
+          script: |
+            echo "🔁 Cloning or pulling latest code..."
+            if [ ! -d quick-note-swift-21 ]; then
+              git clone https://github.com/raju200539/quick-note-swift-21.git
+            else
+              cd quick-note-swift-21
+              git checkout main
+              git pull origin main
+              cd ..
+            fi
+
+            cd quick-note-swift-21
+            echo "📦 Latest commit:"
+            git log -1 --pretty=format:'%h - %s (%ci)'
+
+            echo "🛑 Stopping and removing existing container..."
+            sudo docker stop my-app || true
+            sudo docker rm my-app || true
+
+            echo "🐳 Rebuilding Docker image (no cache)..."
+            sudo docker build --no-cache -t my-app .
+
+            echo "🚀 Running updated container on port 80..."
+            sudo docker run -d -p 80:80 --name my-app my-app
