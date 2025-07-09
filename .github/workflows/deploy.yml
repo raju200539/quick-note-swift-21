@@ -43,8 +43,15 @@ jobs:
             sudo docker stop my-app || true
             sudo docker rm my-app || true
 
-            echo "🐳 Rebuilding Docker image (no cache)..."
-            sudo docker build --no-cache -t my-app .
+            echo "🐳 Rebuilding Docker image with Supabase config..."
+            sudo docker build --no-cache \
+              --build-arg VITE_SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}" \
+              --build-arg VITE_SUPABASE_ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+              -t my-app .
 
             echo "🚀 Running updated container on port 80..."
             sudo docker run -d -p 80:80 --name my-app my-app
+
+            echo "✅ Deployment completed! Container health check:"
+            sleep 5
+            curl -f http://localhost/health || echo "Health check failed"
