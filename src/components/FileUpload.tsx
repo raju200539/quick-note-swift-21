@@ -46,8 +46,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ files, onFilesUpdate }) => {
         },
       });
 
+      console.log('Function response:', response);
+
       if (response.error) {
+        console.error('Function error:', response.error);
         throw new Error(response.error.message);
+      }
+
+      if (!response.data || !response.data.success) {
+        console.error('Function returned error:', response.data);
+        throw new Error(response.data?.error || 'Upload failed');
       }
 
       toast({

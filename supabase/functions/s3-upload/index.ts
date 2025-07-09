@@ -58,11 +58,23 @@ serve(async (req) => {
       const awsBucket = Deno.env.get('AWS_S3_BUCKET');
 
       if (!awsAccessKeyId || !awsSecretAccessKey || !awsRegion || !awsBucket) {
+        console.error('Missing AWS credentials:', {
+          hasAccessKey: !!awsAccessKeyId,
+          hasSecretKey: !!awsSecretAccessKey,
+          hasRegion: !!awsRegion,
+          hasBucket: !!awsBucket,
+        });
         return new Response(JSON.stringify({ error: 'AWS credentials not configured' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      console.log('AWS configuration:', {
+        region: awsRegion,
+        bucket: awsBucket,
+        hasSessionToken: !!awsSessionToken,
+      });
 
       // Create AWS Signature Version 4
       const now = new Date();
@@ -108,8 +120,17 @@ serve(async (req) => {
       });
 
       if (!s3Response.ok) {
-        console.error('S3 upload failed:', await s3Response.text());
-        return new Response(JSON.stringify({ error: 'Failed to upload to S3' }), {
+        const errorText = await s3Response.text();
+        console.error('S3 upload failed:', {
+          status: s3Response.status,
+          statusText: s3Response.statusText,
+          responseText: errorText,
+          url: fileUrl,
+        });
+        return new Response(JSON.stringify({ 
+          error: `Failed to upload to S3: ${s3Response.status} ${s3Response.statusText}`,
+          details: errorText
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
